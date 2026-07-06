@@ -1,1 +1,0 @@
-# gotikucuryasarkral3131

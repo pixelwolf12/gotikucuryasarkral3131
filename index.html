@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<title>Gotik Yaşar</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: linear-gradient(#1a0e2e, #3a1a4a 60%, #4a2050);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Trebuchet MS', sans-serif;
+    overflow: hidden;
+  }
+  #wrap { position: relative; text-align: center; }
+  canvas {
+    background: linear-gradient(#2b1240, #4a1f5c 70%, #5c2a5f);
+    border: 4px solid #9b59b6;
+    border-radius: 10px;
+    box-shadow: 0 0 40px rgba(155,89,182,0.6);
+    display: block;
+  }
+  #title {
+    color: #d8b4e2;
+    text-shadow: 0 0 10px #9b59b6, 0 0 20px #6c2a8c;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+    font-size: 26px;
+  }
+  #score {
+    position: absolute;
+    top: 55px; left: 0; right: 0;
+    color: #fff;
+    font-size: 42px;
+    font-weight: bold;
+    text-shadow: 2px 2px 4px #000;
+    pointer-events: none;
+  }
+  #msg {
+    position: absolute;
+    top: 45%; left: 0; right: 0;
+    color: #f0d6ff;
+    font-size: 18px;
+    text-shadow: 1px 1px 4px #000;
+    pointer-events: none;
+    line-height: 1.6;
+  }
+  #gameover {
+    position: absolute;
+    top: 40%; left: 0; right: 0;
+    color: #ff6b9d;
+    font-size: 24px;
+    font-weight: bold;
+    text-shadow: 0 0 12px #ff2d6b;
+    pointer-events: none;
+    display: none;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="title">🦇 GOTİK YAŞAR 🦇</div>
+  <canvas id="game" width="400" height="600"></canvas>
+  <div id="score">0</div>
+  <div id="msg">Başlamak için tıkla veya boşluk tuşuna bas</div>
+  <div id="gameover">GOTİK YAŞAR ÖLDÜ<br><span style="font-size:16px">Tekrar denemek için tıkla</span></div>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score');
+const msgEl = document.getElementById('msg');
+const goEl = document.getElementById('gameover');
+
+const W = canvas.width, H = canvas.height;
+
+let girl, pillars, score, best = 0, gravity, gameState;
+// gameState: 'ready' | 'playing' | 'over'
+
+function resetGame() {
+  girl = { x: 90, y: H/2, vy: 0, radius: 18, rot: 0 };
+  pillars = [];
+  score = 0;
+  gravity = 0.28;
+  gameState = 'ready';
+  scoreEl.textContent = '0';
+  msgEl.style.display = 'block';
+  goEl.style.display = 'none';
+  spawnTimer = 0;
+}
+
+let spawnTimer = 0;
+const gap = 230;
+const pillarWidth = 62;
+const pillarSpeed = 1.8;
+
+function spawnPillar() {
+  const margin = 60;
+  const topH = margin + Math.random() * (H - gap - margin*2);
+  pillars.push({ x: W + pillarWidth, topH: topH, passed: false });
+}
+
+function drawGothicGirl(x, y, rot) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+
+  // long straight dark hair, back layer (flows behind based on motion)
+  ctx.fillStyle = '#100818';
+  ctx.beginPath();
+  ctx.moveTo(-14, -20);
+  ctx.quadraticCurveTo(-30, -10, -32, 14);
+  ctx.quadraticCurveTo(-33, 32, -22, 38);
+  ctx.quadraticCurveTo(-24, 22, -18, 10);
+  ctx.quadraticCurveTo(-16, -4, -14, -20);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(14, -20);
+  ctx.quadraticCurveTo(30, -10, 32, 14);
+  ctx.quadraticCurveTo(33, 32, 22, 38);
+  ctx.quadraticCurveTo(24, 22, 18, 10);
+  ctx.quadraticCurveTo(16, -4, 14, -20);
+  ctx.closePath();
+  ctx.fill();
+
+  // gothic dress/torso - fitted black bodice with purple accent
+  ctx.fillStyle = '#1c0d24';
+  ctx.beginPath();
+  ctx.moveTo(-11, 2);
+  ctx.quadraticCurveTo(-15, 14, -13, 26);
+  ctx.quadraticCurveTo(0, 32, 13, 26);
+  ctx.quadraticCurveTo(15, 14, 11, 2);
+  ctx.quadraticCurveTo(0, 8, -11, 2);
+  ctx.closePath();
+  ctx.fill();
+
+  // corset lacing detail
+  ctx.strokeStyle = '#9b59b6';
+  ctx.lineWidth = 1.2;
+  for (let i = 0; i < 4; i++) {
+    const yy = 8 + i * 5;
+    ctx.beginPath();
+    ctx.moveTo(-4, yy);
+    ctx.lineTo(4, yy + 3);
+    ctx.stroke();
+  }
+
+  // lace collar / ruffle around neck
+  ctx.fillStyle = '#e8d6f0';
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 13, 5, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = '#3a1a4a';
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 13, 5, 0, Math.PI, Math.PI*2);
+  ctx.fill();
+
+  // neck
+  ctx.fillStyle = '#f5e6ec';
+  ctx.fillRect(-4, -8, 8, 8);
+
+  // hair sides framing face (front strands)
+  ctx.fillStyle = '#150a1c';
+  ctx.beginPath();
+  ctx.moveTo(-12, -14);
+  ctx.quadraticCurveTo(-16, 0, -13, 10);
+  ctx.quadraticCurveTo(-9, 2, -9, -14);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(12, -14);
+  ctx.quadraticCurveTo(16, 0, 13, 10);
+  ctx.quadraticCurveTo(9, 2, 9, -14);
+  ctx.closePath();
+  ctx.fill();
+
+  // face - pale porcelain skin
+  ctx.fillStyle = '#f5e6ec';
+  ctx.beginPath();
+  ctx.ellipse(0, -16, 10.5, 12, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // hair top / fringe covering forehead
+  ctx.fillStyle = '#150a1c';
+  ctx.beginPath();
+  ctx.moveTo(-11, -22);
+  ctx.quadraticCurveTo(0, -32, 11, -22);
+  ctx.quadraticCurveTo(9, -20, 6, -22);
+  ctx.quadraticCurveTo(2, -18, 0, -21);
+  ctx.quadraticCurveTo(-2, -18, -6, -22);
+  ctx.quadraticCurveTo(-9, -20, -11, -22);
+  ctx.closePath();
+  ctx.fill();
+
+  // smoky eyeshadow
+  ctx.fillStyle = 'rgba(60,20,70,0.55)';
+  ctx.beginPath();
+  ctx.ellipse(-4.2, -17, 4, 3.4, -0.15, 0, Math.PI*2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(4.2, -17, 4, 3.4, 0.15, 0, Math.PI*2);
+  ctx.fill();
+
+  // winged eyeliner + eyes
+  ctx.fillStyle = '#1a0a1a';
+  ctx.beginPath();
+  ctx.ellipse(-4.2, -16.5, 2.4, 1.7, -0.1, 0, Math.PI*2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(4.2, -16.5, 2.4, 1.7, 0.1, 0, Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(-6.2, -17.5);
+  ctx.lineTo(-8, -19);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(6.2, -17.5);
+  ctx.lineTo(8, -19);
+  ctx.stroke();
+
+  // blush
+  ctx.fillStyle = 'rgba(200,80,120,0.25)';
+  ctx.beginPath();
+  ctx.ellipse(-6, -12, 2.2, 1.6, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(6, -12, 2.2, 1.6, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // dark lipstick, small smile
+  ctx.fillStyle = '#5c0e26';
+  ctx.beginPath();
+  ctx.ellipse(0, -8.5, 3, 1.4, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // choker with small cross/gem
+  ctx.strokeStyle = '#0a0a0a';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(0, -6, 6.5, 0.15, Math.PI - 0.15);
+  ctx.stroke();
+  ctx.fillStyle = '#c0392b';
+  ctx.beginPath();
+  ctx.arc(0, 0, 1.8, 0, Math.PI*2);
+  ctx.fill();
+
+  // tiny bat-wing hair accessory
+  ctx.fillStyle = 'rgba(20,8,28,0.9)';
+  ctx.beginPath();
+  ctx.moveTo(-9, -26);
+  ctx.lineTo(-16, -30);
+  ctx.lineTo(-12, -24);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(9, -26);
+  ctx.lineTo(16, -30);
+  ctx.lineTo(12, -24);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawPillar(p) {
+  const grad = ctx.createLinearGradient(p.x, 0, p.x + pillarWidth, 0);
+  grad.addColorStop(0, '#3a1a4a');
+  grad.addColorStop(0.5, '#6c3a7a');
+  grad.addColorStop(1, '#3a1a4a');
+  ctx.fillStyle = grad;
+  // top stone pillar
+  ctx.fillRect(p.x, 0, pillarWidth, p.topH);
+  // bottom stone pillar
+  ctx.fillRect(p.x, p.topH + gap, pillarWidth, H - (p.topH + gap));
+
+  // cap details
+  ctx.fillStyle = '#2a0e38';
+  ctx.fillRect(p.x - 4, p.topH - 14, pillarWidth + 8, 14);
+  ctx.fillRect(p.x - 4, p.topH + gap, pillarWidth + 8, 14);
+
+  // stone texture lines
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+  for (let i = 1; i < 4; i++) {
+    ctx.beginPath();
+    ctx.moveTo(p.x, i * (p.topH/4));
+    ctx.lineTo(p.x + pillarWidth, i * (p.topH/4));
+    ctx.stroke();
+    const by = p.topH + gap + i * ((H - p.topH - gap)/4);
+    ctx.beginPath();
+    ctx.moveTo(p.x, by);
+    ctx.lineTo(p.x + pillarWidth, by);
+    ctx.stroke();
+  }
+}
+
+function checkCollision() {
+  if (girl.y - girl.radius < 0 || girl.y + girl.radius > H) return true;
+  for (const p of pillars) {
+    if (girl.x + girl.radius > p.x && girl.x - girl.radius < p.x + pillarWidth) {
+      if (girl.y - girl.radius < p.topH || girl.y + girl.radius > p.topH + gap) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function flap() {
+  if (gameState === 'ready') {
+    gameState = 'playing';
+    msgEl.style.display = 'none';
+  }
+  if (gameState === 'over') {
+    resetGame();
+    return;
+  }
+  if (gameState === 'playing') {
+    girl.vy = -6.5;
+  }
+}
+
+function update() {
+  if (gameState === 'playing') {
+    girl.vy += gravity;
+    girl.y += girl.vy;
+    girl.rot = Math.max(-0.5, Math.min(1.1, girl.vy / 10));
+
+    spawnTimer++;
+    if (spawnTimer > 130) {
+      spawnPillar();
+      spawnTimer = 0;
+    }
+
+    for (const p of pillars) {
+      p.x -= pillarSpeed;
+      if (!p.passed && p.x + pillarWidth < girl.x) {
+        p.passed = true;
+        score++;
+        scoreEl.textContent = score;
+      }
+    }
+    pillars = pillars.filter(p => p.x > -pillarWidth);
+
+    if (checkCollision()) {
+      gameState = 'over';
+      best = Math.max(best, score);
+      goEl.style.display = 'block';
+    }
+  }
+}
+
+function drawBackground() {
+  // moon
+  ctx.fillStyle = '#f0e6ff';
+  ctx.globalAlpha = 0.9;
+  ctx.beginPath();
+  ctx.arc(330, 80, 30, 0, Math.PI*2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // stars
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  for (let i = 0; i < 20; i++) {
+    const sx = (i * 53) % W;
+    const sy = (i * 97) % 300;
+    ctx.beginPath();
+    ctx.arc(sx, sy, 1.4, 0, Math.PI*2);
+    ctx.fill();
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  drawBackground();
+  for (const p of pillars) drawPillar(p);
+  drawGothicGirl(girl.x, girl.y, girl.rot);
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+canvas.addEventListener('mousedown', flap);
+canvas.addEventListener('touchstart', (e) => { e.preventDefault(); flap(); });
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') { e.preventDefault(); flap(); }
+});
+
+resetGame();
+loop();
+</script>
+</body>
+</html>
